@@ -12,14 +12,14 @@ options.add_argument("--disable-gpu")
 
 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
-url = f'https://finance.yahoo.com/quite/{ticker}/news'
+url = f'https://finance.yahoo.com/quote/{prac_1.ticker}/news'
 driver.get(url)
 time.sleep(3)
 
 soup = BeautifulSoup(driver.page_source, 'html.parser')
 driver.quit()
 
-articles = soup.select('section[data-testid="storyitem]')
+articles = soup.select('section[data-testid="storyitem"]')
 print(f'\n뉴스 개수: {len(articles)}개\n')
 
 for article in articles:
