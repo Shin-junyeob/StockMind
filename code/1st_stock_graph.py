@@ -28,4 +28,6 @@ plt.scatter(golden_cross_dates, data.loc[golden_cross_dates]['Close'], label='Go
 plt.scatter(death_cross_dates, data.loc[death_cross_dates]['Close'], label='Death Cross', marker='v', color='red')
 plt.legend()
 plt.title(f'{ticker} Moving Averages & Crosses')
-plt.show()
+plt.grid(True)
+plt.savefig(f'../visualization/{ticker}_{end}_stock.png')
+plt.close()

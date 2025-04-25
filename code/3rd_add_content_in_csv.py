@@ -5,7 +5,9 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
 import time
+import datetime
 
+now = datetime.datetime.now(); now = now.strftime('%Y-%m-%d')
 
 def get_article_content(driver, url):
     try:
@@ -22,9 +24,11 @@ def get_article_content(driver, url):
         return "본문 수집 실패"
 
 
-def enrich_articles_with_content(file_name='news_AAPL.csv'):
-    df = pd.read_csv(file_name)
-    df['content'] = ""
+def enrich_articles_with_content(filename):
+    df = pd.read_csv(filename)
+
+    if 'content' not in df.columns:
+        df['content'] = ""
 
     options = Options()
     options.add_argument("--headless")
@@ -32,15 +36,26 @@ def enrich_articles_with_content(file_name='news_AAPL.csv'):
     options.add_argument("--window-size=1920x1080")
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
-    for i, row in df.iterrows():
+    i = 0
+    while i < len(df):
+        row = df.iloc[i]
+        if isinstance(row['content'], str) and row['content'].strip():
+            print(f"🛑 {i}번째 이후는 이미 본문 수집 완료 → 중단")
+            break
+
+        print(f"✅ {i}번 뉴스 본문 수집 ...", end = " ")
         content = get_article_content(driver, row['url'])
         df.at[i, 'content'] = content
+        print(f"완료")
         time.sleep(1)
+        i += 1
 
     driver.quit()
-    df.to_csv(file_name, index=False)
-    print(f"✅ 본문이 포함된 뉴스 {len(df)}건이 {file_name}에 저장되었습니다.")
+    df.to_csv(filename, index=False)
+    print(f"✅ 본문이 포함된 뉴스 {i}건이 {filename}에 저장되었습니다.")
 
 
 if __name__ == "__main__":
-    enrich_articles_with_content()
+    ticker = "AAPL"
+    filename = f'../news/{ticker}_{now}.csv'
+    enrich_articles_with_content(filename)
