@@ -3,12 +3,12 @@ from transformers import pipeline
 from transformers.utils import logging
 import textwrap
 import re
-from sklearn.feature_extraction.text import TfidfVectorizer
-import datetime
-
-now = datetime.datetime.now(); now = now.strftime('%Y-%m-%d')
+import os
+from keybert import KeyBERT
 
 logging.set_verbosity_error()
+
+kw_model = KeyBERT()
 
 def summarize_articles(df, text_col='content', chunk_size=1000, max_len=130, min_len=30):
     summarizer = pipeline("summarization", model="sshleifer/distilbart-cnn-12-6")
@@ -41,22 +41,15 @@ def analyze_sentiment(df, summary_col='summary'):
     return df
 
 def extract_keywords(df, summary_col='summary', top_k=5):
-    def clean_text(text):
-        text = re.sub(r'[^\w\s]', '', text.lower())
-        return text
-    cleaned_summaries = df[summary_col].fillna("").apply(clean_text)
-    vectorizer = TfidfVectorizer(stop_words='english', max_features=1000)
-    tfidf_matrix = vectorizer.fit_transform(cleaned_summaries)
-    feature_names = vectorizer.get_feature_names_out()
-    keywords_list = []
-    for row in tfidf_matrix:
-        sorted_indices = row.toarray().flatten().argsort()[::-1]
-        top_keywords = [feature_names[i] for i in sorted_indices[:top_k]]
-        keywords_list.append(", ".join(top_keywords))
-    df['keywords'] = keywords_list
+    def get_keywords(text):
+        if pd.isna(text) or len(text.strip()) == 0:
+            return ""
+        keywords = kw_model.extract_keywords(text, top_n=top_k)
+        return ", ".join([kw for kw, _ in keywords])
+    df['keywords'] = df[summary_col].apply(get_keywords)
     return df
 
-def process_news_file(input_file, output_file):
+def process_news_file(input_file):
     df = pd.read_csv(input_file)
     df.reset_index(drop=True, inplace=True)
 
@@ -64,34 +57,22 @@ def process_news_file(input_file, output_file):
         if col not in df.columns:
             df[col] = ""
 
-    i = 0
-    while i < len(df):
-        row = df.iloc[i]
-        if isinstance(row['summary'], str) and row['summary'].strip():
-            print(f"🛑 {i}번째 이후는 이미 요약/분석 완료 → 중단")
-            break
+    for date, group in df.groupby('date'):
+        group = summarize_articles(group, text_col = 'content')
+        group = analyze_sentiment(group, summary_col='summary')
+        group = extract_keywords(group, summary_col='summary')
 
-        print(f"✅ {i}번째 뉴스 summary, sentiment, keyword 분석 ...", end = ' ')
-        row_df = pd.DataFrame([row])
-        row_df = summarize_articles(row_df, text_col="content")
-        row_df = analyze_sentiment(row_df, summary_col="summary")
-        row_df = extract_keywords(row_df, summary_col="summary")
+        output_path = f'../features/{ticker}_{date}.csv'
 
-        for col in ['summary', 'sentiment', 'keywords']:
-            df.at[i, col] = row_df.iloc[0][col]
+        if os.path.exists(output_path):
+            existing_df = pd.read_csv(output_path)
+            group = pd.concat([existing_df, group], ignore_index=True)
+            # group.drop_duplicates(subset='summary', inplace=True)
 
-        print("완료")
-        i += 1
-
-    # ✅ 필요한 컬럼만 저장
-    df[['summary', 'sentiment', 'keywords']].to_csv(output_file, index=False)
-    print(f"✅ 총 {i}건 처리 완료 후 저장됨")
-
-    return df[['summary', 'sentiment', 'keywords']]
-
+        group[['summary', 'sentiment', 'keywords']].to_csv(output_path, index=False)
+        print(f"📁 저장 완료: {output_path}")
 
 if __name__ == "__main__":
     ticker = 'AAPL'
-    input_file = f'../news/{ticker}_{now}.csv'
-    output_file = f'../features/{ticker}_{now}.csv'
-    process_news_file(input_file, output_file)
+    input_file = f'../news/{ticker}_temp.csv'
+    process_news_file(input_file)

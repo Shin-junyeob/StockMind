@@ -16,13 +16,25 @@ def get_article_content(driver, url):
         soup = BeautifulSoup(driver.page_source, 'html.parser')
 
         paragraphs = soup.select('p.yf-1090901')
-        text = ' '.join([p.get_text(strip=True) for p in paragraphs])
-        return text if text else '본문 없음'
+        content = ' '.join([p.get_text(strip=True) for p in paragraphs]) if paragraphs else '본문 없음'
+        time_tag = soup.select_one('time.byline-attr-meta-time')
+        if time_tag and time_tag.has_attr('datetime'):
+            utc_time_tag = time_tag['datetime']
+            utc_time = datetime.datetime.fromisoformat(utc_time_tag.replace('Z', '+00:00'))
+            kst_time = utc_time + datetime.timedelta(hours=9)
+
+            if kst_time.hour >= 6:
+                kst_time += datetime.timedelta(days=1)
+
+            date_str = kst_time.strftime('%Y-%m-%d')
+        else:
+            date_str = datetime.datetime.now().strftime('%Y-%m-%d')
+
+        return content, date_str
 
     except Exception as e:
-        print(f"❗ 본문 수집 실패 ({url}):", e)
-        return "본문 수집 실패"
-
+        print(f"❗ 본문 또는 날짜 수집 실패 ({url}):", e)
+        return "본문 수집 실패", datetime.datetime.now().strftime('%Y-%m-%d')
 
 def enrich_articles_with_content(filename):
     df = pd.read_csv(filename)
@@ -44,10 +56,11 @@ def enrich_articles_with_content(filename):
             break
 
         print(f"✅ {i}번 뉴스 본문 수집 ...", end = " ")
-        content = get_article_content(driver, row['url'])
+        content, date = get_article_content(driver, row['url'])
         df.at[i, 'content'] = content
-        print(f"완료")
+        df.at[i, 'date'] = date
         time.sleep(1)
+        print(f"완료")
         i += 1
 
     driver.quit()
@@ -57,5 +70,5 @@ def enrich_articles_with_content(filename):
 
 if __name__ == "__main__":
     ticker = "AAPL"
-    filename = f'../news/{ticker}_{now}.csv'
+    filename = f'../news/{ticker}_temp.csv'
     enrich_articles_with_content(filename)

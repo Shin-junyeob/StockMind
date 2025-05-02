@@ -22,7 +22,6 @@ def collect_yahoo_finance_news(ticker, scroll_times, stop_url):
     driver.get(base_url)
     time.sleep(3)
 
-    # 🔄 스크롤 반복
     for _ in range(scroll_times):
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         time.sleep(2)
@@ -36,15 +35,17 @@ def collect_yahoo_finance_news(ticker, scroll_times, stop_url):
             link_tag = block.find('a')
             if link_tag:
                 link = link_tag['href']
-                if not link.startswith('http'):
+
+                if not link.startswith('https'):
                     link = 'https://finance.yahoo.com' + link
 
-                # 🛑 기존 URL과 중복되면 수집 중단
-                if stop_url and link == stop_url:
+                if stop_url and link in stop_url:
                     print("🛑 기존 URL과 중복된 뉴스 발견 → 수집 중단")
                     break
 
-                articles.append({'url': link})
+                if '/news/' in link:
+                    articles.append({'url': link})
+
         except Exception as e:
             print("❗ 기사 파싱 실패:", e)
             continue
@@ -52,8 +53,7 @@ def collect_yahoo_finance_news(ticker, scroll_times, stop_url):
     driver.quit()
     return articles
 
-
-def save_articles_to_csv(new_articles, filename="news_AAPL.csv"):
+def save_articles_to_csv(new_articles, filename):
     if not new_articles:
         print("⚠️ 저장할 새로운 뉴스가 없습니다.")
         return
@@ -72,21 +72,18 @@ def save_articles_to_csv(new_articles, filename="news_AAPL.csv"):
 
 if __name__ == "__main__":
     ticker = 'AAPL'
-    input_file = f'../news/{ticker}_{yesterday}.csv'
-    output_file = f'../news/{ticker}_{now}.csv'
+    file_name = f'../news/{ticker}_temp.csv'
     latest_url = None
 
-    if os.path.exists(input_file):
-        old_df = pd.read_csv(input_file)
+    if os.path.exists(file_name):
+        old_df = pd.read_csv(file_name)
         if not old_df.empty:
-            latest_url = old_df.iloc[0]["url"]
+            latest_url = old_df.iloc[0:3]["url"].tolist()
 
-        news = collect_yahoo_finance_news(ticker=ticker, scroll_times=5, stop_url=latest_url)
-    else:
-        news = collect_yahoo_finance_news(ticker=ticker,scroll_times=1, stop_url=latest_url)
-
+    news = collect_yahoo_finance_news(ticker=ticker, scroll_times=10, stop_url=latest_url)
+    
     print(f"\n✅ 최종 수집된 뉴스 개수: {len(news)}건")
     for i, article in enumerate(news, 1):
         print(f"[{i}] URL: {article['url']}")
 
-    save_articles_to_csv(news, filename=output_file)
+    save_articles_to_csv(news, file_name)
