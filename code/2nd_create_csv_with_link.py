@@ -59,14 +59,7 @@ def save_articles_to_csv(new_articles, filename):
         return
 
     new_df = pd.DataFrame(new_articles)
-
-    if os.path.exists(filename):
-        old_df = pd.read_csv(filename)
-        combined_df = pd.concat([new_df, old_df], ignore_index=True)
-    else:
-        combined_df = new_df
-
-    combined_df.to_csv(filename, index=False)
+    new_df.to_csv(filename, index=False)
     print(f"✅ {len(new_df)}건의 뉴스가 {filename} 맨 위에 추가 저장되었습니다.")
 
 

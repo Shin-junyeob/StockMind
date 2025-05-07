@@ -1,47 +1,55 @@
-import pandas as pd
-import yfinance as yf
+import requests
 import datetime
+import json
 import os
 
-def create_metadata(ticker, output_file):
+from privacy import api_key
+
+def fetch_price_cache(ticker, cache_file="price_cache.json"):
     today = datetime.datetime.now().date()
-    date_str = today.strftime('%Y-%m-%d')
-    feature_file = f"{ticker}_{date_str}.csv"
+    one_month_ago = today - datetime.timedelta(days=30)
 
-    # 주가 데이터 가져오기 (7일 중 가장 최근 2일)
-    end_date = today + datetime.timedelta(days=1)
-    start_date = today - datetime.timedelta(days=7)
+    start_date = one_month_ago.strftime('%Y-%m-%d')
+    end_date = today.strftime('%Y-%m-%d')
 
-    df = yf.download(ticker, start=start_date.strftime('%Y-%m-%d'), end=end_date.strftime('%Y-%m-%d'))
+    url = (
+        f"https://api.twelvedata.com/time_series?apikey={api_key}"
+        f"&symbol={ticker}&interval=1day&start_date={start_date}&end_date={end_date}"
+        f"&timezone=UTC&dp=2&format=JSON"
+    )
 
-    if len(df) < 2:
-        print("⚠️ 주가 데이터 부족")
-        return
+    response = requests.get(url)
+    data = response.json()
 
-    df = df.sort_index()
-    price_today = df.iloc[-1]['Close']
-    price_yesterday = df.iloc[-2]['Close']
-    price_today = float(round(price_today, 2))
-    rate = float(round((price_today - price_yesterday) / price_yesterday * 100, 2))
+    if "values" not in data:
+        print("❗ 데이터 수신 실패:", data.get("message", "알 수 없음"))
+        return None
 
-    metadata_entry = {
-        'date': date_str,
-        'feature_file': feature_file,
-        'price': price_today,
-        'rate': rate
-    }
+    # 날짜순으로 정렬
+    values = sorted(data["values"], key=lambda x: x["datetime"])
+    price_dict = {}
+    previous_price = None
 
-    # metadata.csv 업데이트
-    if os.path.exists(output_file):
-        metadata_df = pd.read_csv(output_file)
-        metadata_df = pd.concat([metadata_df, pd.DataFrame([metadata_entry])], ignore_index=True)
-    else:
-        metadata_df = pd.DataFrame([metadata_entry])
+    for entry in values:
+        date = entry["datetime"]
+        close_price = float(entry["close"])
+        if previous_price is not None:
+            rate = round((close_price - previous_price) / previous_price * 100, 2)
+        else:
+            rate = None
+        price_dict[date] = {
+            "price": close_price,
+            "rate": rate,
+            "news": f'{ticker}_{date}.csv'
+        }
+        previous_price = close_price
 
-    metadata_df.to_csv(output_file, index=False)
-    print(f"✅ metadata.csv 업데이트 완료: {date_str}")
+    with open(cache_file, "w") as f:
+        json.dump(price_dict, f, indent=2)
+
+    print(f"✅ {len(price_dict)}일치 종가 및 변동률 데이터를 {cache_file}에 저장 완료")
+    return price_dict
 
 if __name__ == "__main__":
-    ticker = 'AAPL'
-    metadata = '../metadata.csv'
-    create_metadata(ticker, metadata)
+    ticker = "AAPL"
+    fetch_price_cache(ticker)

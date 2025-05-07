@@ -47,14 +47,14 @@ X = np.array(X_features)
 y = np.array(Y_labels)
 
 # 모델 훈련
-# X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 model = RandomForestRegressor()
-X_train, y_train = X, y # 5일이상 쌓이면 삭제
+# X_train, y_train = X, y # 5일이상 쌓이면 삭제
 model.fit(X_train, y_train)
-y_pred = model.predict(X) # 5일이상 쌓이면 삭제
-print(y_pred) # 5일이상 쌓이면 삭제
+# y_pred = model.predict(X) # 5일이상 쌓이면 삭제
+# print(y_pred) # 5일이상 쌓이면 삭제
 
 # 평가
-# y_pred = model.predict(X_test)
-# mae = mean_absolute_error(y_test, y_pred)
-# print(f"✅ 모델 평가 완료 - MAE: {mae:.4f}")
+y_pred = model.predict(X_test)
+mae = mean_absolute_error(y_test, y_pred)
+print(f"✅ 모델 평가 완료 - MAE: {mae:.4f}")
