@@ -70,5 +70,5 @@ def enrich_articles_with_content(filename):
 
 if __name__ == "__main__":
     ticker = "AAPL"
-    filename = f'../news/{ticker}_temp.csv'
+    filename = f'../temp/{ticker}_temp.csv'
     enrich_articles_with_content(filename)

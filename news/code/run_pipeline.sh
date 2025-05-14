@@ -16,7 +16,7 @@ deactivate
 
 echo "📍 Step 3: metadata 생성 (vent)"
 source ../venv/bin/activate
-# python 5th_make_metadata.py
+python 5th_make_metadata.py
 deactivate
 
 echo "✅ 전체 파이프라인 실행 완료!"

@@ -65,7 +65,7 @@ def save_articles_to_csv(new_articles, filename):
 
 if __name__ == "__main__":
     ticker = 'AAPL'
-    file_name = f'../news/{ticker}_temp.csv'
+    file_name = f'../temp/{ticker}_temp.csv'
     latest_url = None
 
     if os.path.exists(file_name):
@@ -73,7 +73,7 @@ if __name__ == "__main__":
         if not old_df.empty:
             latest_url = old_df.iloc[0:3]["url"].tolist()
 
-    news = collect_yahoo_finance_news(ticker=ticker, scroll_times=10, stop_url=latest_url)
+    news = collect_yahoo_finance_news(ticker=ticker, scroll_times=20, stop_url=latest_url)
     
     print(f"\n✅ 최종 수집된 뉴스 개수: {len(news)}건")
     for i, article in enumerate(news, 1):

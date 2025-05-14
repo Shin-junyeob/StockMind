@@ -74,5 +74,5 @@ def process_news_file(input_file):
 
 if __name__ == "__main__":
     ticker = 'AAPL'
-    input_file = f'../news/{ticker}_temp.csv'
+    input_file = f'../temp/{ticker}_temp.csv'
     process_news_file(input_file)

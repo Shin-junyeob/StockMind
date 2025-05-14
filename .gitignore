@@ -1,4 +1,8 @@
 .python-version
-venv/
-venv310/
-code/privacy.py
+chart_pattern/venv/
+chart_pattern/results/
+news/code/privacy.py
+news/code/__pycache__
+news/features/
+news/temp/
+news/visualization

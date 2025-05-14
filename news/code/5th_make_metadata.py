@@ -2,10 +2,9 @@ import requests
 import datetime
 import json
 import os
+from privacy import twelve_data_api_key as api_key
 
-from privacy import api_key
-
-def fetch_price_cache(ticker, cache_file="price_cache.json"):
+def fetch_price_cache(ticker, cache_file="../metadata.json"):
     today = datetime.datetime.now().date()
     one_month_ago = today - datetime.timedelta(days=30)
 
