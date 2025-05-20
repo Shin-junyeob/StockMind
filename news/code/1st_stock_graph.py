@@ -3,6 +3,10 @@ import requests
 import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 
+'../../')))
 from privacy import twelve_data_api_key as api_key
 
 def fetch_price_data(ticker, interval="1day", outputsize=3000):

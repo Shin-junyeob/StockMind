@@ -1,8 +1,12 @@
+__pycache__
+.gitignore
 .python-version
-chart_pattern/venv/
+privacy.py
 chart_pattern/results/
-news/code/privacy.py
+chart_pattern/venv_cp/
 news/code/__pycache__
 news/features/
 news/temp/
-news/visualization
+news/venv_news/
+news/venv_news_310/
+news/visualization/

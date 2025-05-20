@@ -49,7 +49,7 @@ def create_pattern_dataset(pattern_func, filename, n_samples=200):
     df.to_csv(filename, index=False)
     return df
 
-df_flag = create_pattern_dataset(generate_flag_pattern, "flag_pattern_with_result.csv")
-df_pennant = create_pattern_dataset(generate_pennant_pattern, "pennant_pattern_with_result.csv")
-df_cup = create_pattern_dataset(generate_cup_and_handle_pattern, "cup_handle_pattern_with_result.csv")
-df_gap = create_pattern_dataset(generate_gap_pattern, "gap_pattern_with_result.csv")
+df_flag = create_pattern_dataset(generate_flag_pattern, "../results/flag_pattern_with_result.csv")
+df_pennant = create_pattern_dataset(generate_pennant_pattern, "../results/pennant_pattern_with_result.csv")
+df_cup = create_pattern_dataset(generate_cup_and_handle_pattern, "../results/cup_handle_pattern_with_result.csv")
+df_gap = create_pattern_dataset(generate_gap_pattern, "../results/gap_pattern_with_result.csv")

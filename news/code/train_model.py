@@ -11,7 +11,7 @@ from tqdm import tqdm
 summary_model = SentenceTransformer('all-MiniLM-L6-v2')
 tqdm.pandas()
 
-def load_data(metadata_path="../metadata.json"):
+def load_data(metadata_path):
     with open(metadata_path, "r") as f:
         metadata = json.load(f)
 
@@ -30,18 +30,33 @@ def load_data(metadata_path="../metadata.json"):
             df = pd.read_csv(feature_path)
             combined_df = pd.concat([combined_df, df], ignore_index=True)
 
+        # 필터 조건: 뉴스 없음 or 변동률 없음
         if combined_df.empty or info['rate'] is None:
             continue
 
+        # 1. 뉴스 summary 임베딩 (평균)
         summary_embeddings = summary_model.encode(combined_df['summary'].tolist())
-        summary_vector = np.mean(summary_embeddings, axis=0)
+        summary_vector = np.mean(summary_embeddings, axis=0)  # shape: (384,)
 
-        sentiment_encoded = pd.get_dummies(combined_df['sentiment']).sum().values
+        # 2. 감성 분석 결과 (one-hot 인코딩 후 합산)
+        # 감정 one-hot → 항상 3차원 고정 (positive, neutral, negative 순서)
+        sentiment_encoded = pd.get_dummies(combined_df['sentiment'])
 
-        keyword_counts = combined_df['keywords'].str.split(", ").explode().value_counts()
-        keyword_vector = keyword_counts.reindex(
-            combined_df['keywords'].str.split(", ").explode().unique(), fill_value=0).values[:10]
+        # 누락된 컬럼 보정
+        for sentiment in ['positive', 'neutral', 'negative']:
+            if sentiment not in sentiment_encoded.columns:
+                sentiment_encoded[sentiment] = 0
 
+        # 고정 순서로 정렬
+        sentiment_encoded = sentiment_encoded[['positive', 'neutral', 'negative']].sum().values
+
+        # 3. 키워드 등장 빈도 (5개 고정)
+        all_keywords = combined_df['keywords'].str.split(", ").explode()
+        keyword_counts = all_keywords.value_counts()
+        top_keywords = all_keywords.unique()[:5]  # 5개 고정
+        keyword_vector = keyword_counts.reindex(top_keywords, fill_value=0).values  # shape: (5,)
+
+        # 4. 최종 벡터 연결
         full_vector = np.concatenate([summary_vector, sentiment_encoded, keyword_vector])
 
         X_features.append(full_vector)
@@ -50,8 +65,9 @@ def load_data(metadata_path="../metadata.json"):
 
     return np.array(X_features), np.array(Y_labels), np.array(date_list)
 
-def train_and_evaluate(mode="random"):
-    X, y, dates = load_data()
+
+def train_and_evaluate(cache_file, mode):
+    X, y, dates = load_data(cache_file)
 
     if mode == "random":
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -75,4 +91,9 @@ def train_and_evaluate(mode="random"):
     print(f"MAE: {mae:.4f}%")
 
 if __name__ == "__main__":
-    train_and_evaluate(mode="random")
+    tickers = ['AAPL', 'GOOG', 'META', 'TSLA', 'MSFT', 'AMZN', 'NVDA', 'NFLX']
+    for ticker in tickers:
+        print(f'❗️ {ticker} 대상 analysis 시작')
+        cache_file = f'../metadata/{ticker}_metadata.json'
+        mode = 'random'
+        train_and_evaluate(cache_file, mode)

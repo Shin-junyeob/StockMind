@@ -64,19 +64,21 @@ def save_articles_to_csv(new_articles, filename):
 
 
 if __name__ == "__main__":
-    ticker = 'AAPL'
-    file_name = f'../temp/{ticker}_temp.csv'
-    latest_url = None
+    tickers = ['AAPL', 'GOOG', 'META', 'TSLA', 'MSFT', 'AMZN', 'NVDA', 'NFLX']
+    for ticker in tickers:
+        print(f'❗️ {ticker} 대상 뉴스기사 수집 시작')
+        file_name = f'../temp/{ticker}_temp.csv'
+        latest_url = None
 
-    if os.path.exists(file_name):
-        old_df = pd.read_csv(file_name)
-        if not old_df.empty:
-            latest_url = old_df.iloc[0:3]["url"].tolist()
+        if os.path.exists(file_name):
+            old_df = pd.read_csv(file_name)
+            if not old_df.empty:
+                latest_url = old_df.iloc[0:3]["url"].tolist()
 
-    news = collect_yahoo_finance_news(ticker=ticker, scroll_times=20, stop_url=latest_url)
-    
-    print(f"\n✅ 최종 수집된 뉴스 개수: {len(news)}건")
-    for i, article in enumerate(news, 1):
-        print(f"[{i}] URL: {article['url']}")
+        news = collect_yahoo_finance_news(ticker=ticker, scroll_times=20, stop_url=latest_url)
+        
+        print(f"\n✅ 최종 수집된 뉴스 개수: {len(news)}건")
+        for i, article in enumerate(news, 1):
+            print(f"[{i}] URL: {article['url']}")
 
-    save_articles_to_csv(news, file_name)
+        save_articles_to_csv(news, file_name)

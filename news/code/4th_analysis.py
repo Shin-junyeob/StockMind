@@ -62,7 +62,7 @@ def process_news_file(input_file):
         group = analyze_sentiment(group, summary_col='summary')
         group = extract_keywords(group, summary_col='summary')
 
-        output_path = f'../features/{ticker}_{date}.csv'
+        output_path = f'../features/{ticker}/{date}.csv'
 
         if os.path.exists(output_path):
             existing_df = pd.read_csv(output_path)
@@ -73,6 +73,9 @@ def process_news_file(input_file):
         print(f"📁 저장 완료: {output_path}")
 
 if __name__ == "__main__":
-    ticker = 'AAPL'
-    input_file = f'../temp/{ticker}_temp.csv'
-    process_news_file(input_file)
+    # tickers = ['AAPL', 'GOOG', 'META', 'TSLA', 'MSFT', 'AMZN', 'NVDA', 'NFLX']
+    tickers = ['GOOG', 'META', 'TSLA', 'MSFT', 'AMZN', 'NVDA', 'NFLX']
+    for ticker in tickers:
+        print(f'❗️ {ticker} 대상 analysis 시작')
+        input_file = f'../temp/{ticker}_temp.csv'
+        process_news_file(input_file)
