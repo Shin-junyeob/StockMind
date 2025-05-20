@@ -100,4 +100,4 @@ for symbol in df['symbol'].unique():
 
 # Save results
 df_results = pd.DataFrame(results)
-df_results.to_csv("/mnt/data/flag_patterns_strict_labeled.csv", index=False)
+df_results.to_csv("../results/flag_patterns_strict_labeled.csv", index=False)
