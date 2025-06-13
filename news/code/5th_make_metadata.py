@@ -45,8 +45,8 @@ def fetch_price_cache(ticker, cache_file):
             close_price = float(entry["close"])
 
             # 휴일 뉴스 포함 + 오늘 뉴스도 포함
-            news_files = [f"{ticker}_{d}.csv" for d in pending_news_dates]
-            news_files.append(f"{ticker}_{current_date}.csv")
+            news_files = [f"{ticker}/{d}.csv" for d in pending_news_dates]
+            news_files.append(f"{ticker}/{current_date}.csv")
 
             rate = round((close_price - previous_price) / previous_price * 100, 2) if previous_price else None
             if current_date >= filtered_start_date:

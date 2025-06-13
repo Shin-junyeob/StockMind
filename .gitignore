@@ -1,12 +1,16 @@
 __pycache__
+.DS_Store
 .gitignore
 .python-version
 privacy.py
 chart_pattern/results/
 chart_pattern/venv_cp/
+chart_pattern/.DS_Store
 news/code/__pycache__
+news/code/.DS_Store
 news/features/
 news/temp/
 news/venv_news/
 news/venv_news_310/
 news/visualization/
+news/.DS_Store

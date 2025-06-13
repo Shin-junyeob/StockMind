@@ -6,6 +6,7 @@ source ../venv_news/bin/activate
 # python 1st_stock_graph.py
 python 2nd_create_csv_with_link.py
 python 3rd_add_content_in_csv.py
+python extract_3rd_add_content_in_csv.py
 
 echo "📍 Step 2: 뉴스 전처리"
 source ../venv_news_310/bin/activate

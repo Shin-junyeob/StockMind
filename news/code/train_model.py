@@ -91,9 +91,9 @@ def train_and_evaluate(cache_file, mode):
     print(f"MAE: {mae:.4f}%")
 
 if __name__ == "__main__":
+    mode = input('mode select (random, last) : ')
     tickers = ['AAPL', 'GOOG', 'META', 'TSLA', 'MSFT', 'AMZN', 'NVDA', 'NFLX']
     for ticker in tickers:
         print(f'❗️ {ticker} 대상 analysis 시작')
         cache_file = f'../metadata/{ticker}_metadata.json'
-        mode = 'random'
         train_and_evaluate(cache_file, mode)
