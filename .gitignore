@@ -4,8 +4,6 @@
 ### Custom ###
 .DS_Store
 privacy.py
-news/features/
-news/temp/
 chart_pattern/.DS_Store
 chart_pattern/results/
 
