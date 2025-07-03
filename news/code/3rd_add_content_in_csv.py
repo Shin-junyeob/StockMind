@@ -43,6 +43,7 @@ def enrich_articles_with_content(filename):
         df['content'] = ""
 
     options = Options()
+    options.binary_location = "/usr/bin/google-chrome" # WSL에서 실행할 때 적용
     options.add_argument("--headless")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920x1080")

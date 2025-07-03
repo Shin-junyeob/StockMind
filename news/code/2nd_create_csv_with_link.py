@@ -13,6 +13,7 @@ now = now.strftime('%Y-%m-%d'); yesterday = yesterday.strftime('%Y-%m-%d')
 
 def collect_yahoo_finance_news(ticker, scroll_times, stop_url):
     options = Options()
+    options.binary_location = "/usr/bin/google-chrome" # WSL에서 실행할 때 적용 
     options.add_argument("--headless")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920x1080")
