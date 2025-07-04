@@ -44,6 +44,7 @@ def enrich_articles_with_content(filename):
 
     options = Options()
     options.binary_location = "/usr/bin/google-chrome" # WSL에서 실행할 때 적용
+    options.add_argument("--blink-settings=imagesEnabled=false") # 불필요한 광고/이미지 안 불러오도록
     options.add_argument("--headless")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920x1080")

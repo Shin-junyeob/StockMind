@@ -14,12 +14,14 @@ now = now.strftime('%Y-%m-%d'); yesterday = yesterday.strftime('%Y-%m-%d')
 def collect_yahoo_finance_news(ticker, scroll_times, stop_url):
     options = Options()
     options.binary_location = "/usr/bin/google-chrome" # WSL에서 실행할 때 적용 
+    options.add_argument("--blink-settings=imagesEnabled=false") # 불필요한 광고/이미지 안 불러오도록
     options.add_argument("--headless")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920x1080")
 
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
     base_url = f"https://finance.yahoo.com/quote/{ticker}/news?p={ticker}"
+    driver.set_page_load_timeout(180) # 타임아웃 120 -> 180
     driver.get(base_url)
     time.sleep(3)
 
@@ -76,7 +78,7 @@ if __name__ == "__main__":
             if not old_df.empty:
                 latest_url = old_df.iloc[0:3]["url"].tolist()
 
-        news = collect_yahoo_finance_news(ticker=ticker, scroll_times=20, stop_url=latest_url)
+        news = collect_yahoo_finance_news(ticker=ticker, scroll_times=10, stop_url=latest_url)
         
         print(f"\n✅ 최종 수집된 뉴스 개수: {len(news)}건")
         for i, article in enumerate(news, 1):
