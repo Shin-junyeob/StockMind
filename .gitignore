@@ -291,3 +291,4 @@ $RECYCLE.BIN/
 
 # Custom
 .env
+data/
