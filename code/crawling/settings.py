@@ -10,6 +10,7 @@ DEFAULT_SCROLL = int(os.getenv("YF_MAX_SCROLL", "20"))
 DEFAULT_ARTICLES = int(os.getenv("YF_MAX_ARTICLES", "200"))
 
 STOP_TOPN = int(os.getenv("YF_STOP_TOPN", "15"))
+STOP_LOOKBACK_DAYS = int(os.getenv("YF_STOP_LOOKBACK_DAYS", "7"))
 
 # UA 3종(+1)과 공통 설정
 UA_LIST = [

@@ -13,6 +13,12 @@ from .settings import SELENIUM, UA_LIST
 
 YF_STORY_SEL = "section[data-testid='storyitem']"
 
+YF_STORY_FALLBACKS = [
+    "li.js-stream-content",
+    "div.caas-content-wrapper article a",
+    "div.caas-content-wrapper a"
+]
+
 def _build_chrome_options(user_agent: Optional[str] = None) -> Options:
     opts = Options()
     if SELENIUM.get("headless", True):
@@ -95,10 +101,8 @@ def collect_yahoo_links(ticker: str, max_scroll: int, stop_urls: Set[str], user_
     try:
         driver.set_page_load_timeout(SELENIUM.get("page_load_timeout", 180))
         driver.get(url)
-        _dismiss_consent(driver)
-        # 첫 스토리 등장까지 최대 10초 대기
         try:
-            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, YF_STORY_SEL)))
+            _dismiss_consent(driver)
         except Exception:
             pass
 
@@ -110,14 +114,24 @@ def collect_yahoo_links(ticker: str, max_scroll: int, stop_urls: Set[str], user_
         )
 
         soup = BeautifulSoup(driver.page_source, "html.parser")
+
+        blocks = soup.select(YF_STORY_SEL)
+
+        if not blocks:
+            for sel in YF_STORY_FALLBACKS:
+                blocks = soup.select(sel)
+                if blocks:
+                    break
+
         links, seen = [], set()
-        for sec in soup.select(YF_STORY_SEL):
-            a = sec.find("a")
-            u = _normalize_url(a.get("href") if a else None)
+        for sec in blocks:
+            a = sec.find("a") if hasattr(sec, "find") else None
+            if a is None and hasattr(sec, "get"):
+                a = sec
+            href = (a.get("href") if a else None)
+            u = _normalize_url(href)
             if not u or u in seen:
                 continue
-            if u in stop_urls:     # 최신 상단 n개에 부딪히면 조기 종료
-                break
             seen.add(u)
             links.append(u)
         return links

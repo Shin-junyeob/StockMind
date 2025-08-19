@@ -26,62 +26,90 @@ def _build_headless_driver(user_agent: Optional[str] = None) -> webdriver.Chrome
     return webdriver.Chrome(options=opts)
 
 def _extract_title_safely(soup: BeautifulSoup) -> str:
-    # 1순위: OG title
+    # 1) 메타 우선
     og = soup.find("meta", attrs={"property": "og:title"})
     if og and og.get("content"):
         return og["content"].strip()
 
-    # 2순위: meta name=title
     meta_title = soup.find("meta", attrs={"name": "title"})
     if meta_title and meta_title.get("content"):
         return meta_title["content"].strip()
 
-    # 3순위: h1 / 기사 타이틀로 자주 쓰이는 선택자들 (필요시 보강(
-    h1 = soup.find("h1")
-    if h1 and h1.get_text(strip=True):
-        return h1.get_text(strip=True)
+    # 2) 구조화된 h1 후보들
+    for sel in (
+        "h1",
+        "header h1",
+        "article h1",
+        "div.caas-title-wrapper h1",
+        "div.caas-content-header h1",
+    ):
+        h = soup.select_one(sel)
+        if h and h.get_text(strip=True):
+            return h.get_text(strip=True)
 
-    # 4순위: <title>
+    # 3) 최후: <title>
     if soup.title and soup.title.get_text():
         return soup.title.get_text(strip=True)
-
     return ""
 
+
+def _extract_content_safely(soup: BeautifulSoup) -> str:
+    # 1) 주력 본문 선택자(다중 OR)
+    primary = soup.select("article p, main p, div[data-test-locator='mega'] p")
+    if primary:
+        return " ".join(p.get_text(strip=True) for p in primary if p.get_text(strip=True))
+
+    # 2) fallback 후보들(구 Yahoo/caas/일반 기사 템플릿)
+    fallbacks = [
+        "div.caas-body p",
+        "div#article-body p",
+        "div[itemprop='articleBody'] p",
+        "div[itemprop='articleBody'] div p",  # 중첩 구조
+        "section[data-test-locator='mega'] p",
+    ]
+    for sel in fallbacks:
+        nodes = soup.select(sel)
+        if nodes:
+            return " ".join(p.get_text(strip=True) for p in nodes if p.get_text(strip=True))
+
+    # 3) 최후의 수단: meta description
+    meta = soup.find("meta", {"name": "description"}) or soup.find("meta", {"property": "og:description"})
+    if meta and meta.get("content"):
+        return meta["content"].strip()
+
+    # 4) 정말 없으면 빈 문자열(상위에서 "본문 없음" 처리)
+    return ""
+
+
 def _parse_datetime_kst(soup: BeautifulSoup) -> str:
-    t = soup.select_one("time.byline-attr-meta-time,[datetime]")
+    # 1) 가장 신뢰할 수 있는 time[datetime]
+    t = soup.select_one("time[datetime]")
     if t and t.has_attr("datetime"):
         try:
-            # ex) 2025-08-15T12:34:56Z
             utc_iso = t["datetime"].replace("Z", "+00:00")
             kst = pd.to_datetime(utc_iso).tz_convert("Asia/Seoul").to_pydatetime()
             return kst.strftime("%Y-%m-%d")
         except Exception:
             pass
-    if meta_time and meta_time.get("content"):
-        try:
-            utc_iso = meta_time["content"].replace("Z", "+00:00")
-            kst = pd.to_datetime(utc_iso).tz_convert("Asia/Seoul").to_pydatetime()
-            return kst.strftime("%Y-%m-%d")
-        except Exception:
-            pass
+
+    # 2) 기사 메타에 자주 쓰이는 퍼블리시드 타임
+    for meta_name in (
+        {"property": "article:published_time"},
+        {"name": "article:published_time"},
+        {"name": "publish-date"},
+        {"itemprop": "datePublished"},
+    ):
+        meta = soup.find("meta", attrs=meta_name)
+        if meta and meta.get("content"):
+            try:
+                utc_iso = meta["content"].replace("Z", "+00:00")
+                kst = pd.to_datetime(utc_iso).tz_convert("Asia/Seoul").to_pydatetime()
+                return kst.strftime("%Y-%m-%d")
+            except Exception:
+                continue
+
+    # 3) 실패 시 오늘 날짜
     return dt.datetime.now().strftime("%Y-%m-%d")
-
-def _extract_content_safely(soup: BeautifulSoup) -> str:
-    # 1순위: 본문 p
-    paras = [p.get_text(strip=True) for p in soup.select("article p, main p, div[data-test-locator='mega'] p")]
-    if paras:
-        return " ".join(paras)
-
-    # 2순위: meta description
-    meta = soup.find("meta", {"name": "description"}) or soup.find("meta", {"property": "og:description"})
-    if meta and meta.get("content"):
-        return meta["content"]
-
-    # 3순위: title만이라도
-    if soup.title:
-        return soup.title.get_text(strip=True)
-
-    return ""
 
 def fetch_articles_http(urls: Iterable[str], ua_mode: str = "round_robin", delay_range=(0.8, 1.6), min_len_for_ok: int = 120, enable_selenium_fallback: bool = True) -> list[dict]:
     rotator = UARotator(UA_LIST, ua_mode)
