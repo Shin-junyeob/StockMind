@@ -25,11 +25,6 @@ def main():
     p.add_argument("--date", type=str, default=None, help="특정 날짜만 처리 (YYYY-MM-DD)")
     args = p.parse_args()
     
-    ###
-    print(f"args.ticker: {args.ticker}")
-    print(f"args.date: {args.date}")
-    ###
-
     run(args.ticker, args.date)
 
 if __name__ == "__main__":
