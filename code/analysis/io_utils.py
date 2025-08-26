@@ -4,7 +4,7 @@ from typing import List
 
 import pandas as pd
 
-from .settings import BASE_DIR, RESULTS_DIR, INPUT_FILENAME, OUTPUT_COLUMNS
+from .settings import BASE_DIR, DATA_DIR, RAW_DIR, RESULTS_DIR, INPUT_FILENAME, OUTPUT_COLUMNS
 
 
 def list_tickers() -> List[str]:
@@ -21,7 +21,7 @@ def list_dates(ticker: str) -> List[str]:
 
 
 def input_path(ticker: str, date:str) -> str:
-    return os.path.join(BASE_DIR, ticker, date, INPUT_FILENAME)
+    return os.path.join(RAW_DIR, ticker, date, INPUT_FILENAME)
 
 
 def output_path(ticker: str, date:str) -> str:
