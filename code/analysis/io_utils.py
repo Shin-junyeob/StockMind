@@ -1,6 +1,6 @@
 import os
 import glob
-frin typing import List
+from typing import List
 
 import pandas as pd
 
