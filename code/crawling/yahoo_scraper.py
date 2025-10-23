@@ -1,3 +1,4 @@
+import os
 import time, random
 from typing import List, Set, Optional
 
@@ -18,6 +19,18 @@ YF_STORY_FALLBACKS = [
     "div.caas-content-wrapper article a",
     "div.caas-content-wrapper a"
 ]
+
+def _get_driver(options: Options):
+    """
+    USE_REMOTE_WEBDRIVER=true 이면 Compose의 selenium 서비스로 원격 연결,
+    아니면 컨테이너 내부의 로컬 Chrome(설치 시)에 연결.
+    """
+    use_remote = os.getenv("USE_REMOTE_WEBDRIVER", "false").lower() == "true"
+    if use_remote:
+        remote_url = os.getenv("SELENIUM_REMOTE_URL", "http://selenium:4444")
+        return webdriver.Remote(command_executor=remote_url, options=options)
+    else:
+        return webdriver.Chrome(options=options)
 
 def _build_chrome_options(user_agent: Optional[str] = None) -> Options:
     opts = Options()
@@ -97,7 +110,7 @@ def _dismiss_consent(driver):
 def collect_yahoo_links(ticker: str, max_scroll: int, stop_urls: Set[str], user_agent: Optional[str] = None) -> List[str]:
     url = f"https://finance.yahoo.com/quote/{ticker}/news?p={ticker}"
     options = _build_chrome_options(user_agent=user_agent or random.choice(UA_LIST))
-    driver = webdriver.Chrome(options=options)  # Selenium Manager 사용
+    driver = _get_driver(options)
     try:
         driver.set_page_load_timeout(SELENIUM.get("page_load_timeout", 180))
         driver.get(url)

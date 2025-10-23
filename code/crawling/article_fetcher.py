@@ -1,3 +1,4 @@
+import os
 import time, random, datetime as dt
 from typing import Iterable, Optional, Tuple
 
@@ -9,21 +10,21 @@ from selenium.webdriver.chrome.options import Options
 from .http_utils import make_session, http_get, UARotator
 from .settings import UA_LIST, SELENIUM, ACCEPT_LANGUAGE
 
-
-# 간단한 셀레니움 폴백(본문이 너무 짧을 때만)
-def _build_headless_driver(user_agent: Optional[str] = None) -> webdriver.Chrome:
+def _get_driver_for_fallback(user_agent: str | None = None) -> webdriver.Remote:
     opts = Options()
-    if SELENIUM.get("headless", True):
-        opts.add_argument("--headless=new")
+    opts.add_argument("--headless=new")
     opts.add_argument("--disable-gpu")
-    w, h = SELENIUM.get("window_size", (1920, 1080))
-    opts.add_argument(f"--window-size={w}x{h}")
     opts.add_argument("--no-sandbox")
     opts.add_argument("--disable-dev-shm-usage")
-    opts.add_argument("--blink-settings=imagesEnabled=false")
     if user_agent:
         opts.add_argument(f"--user-agent={user_agent}")
-    return webdriver.Chrome(options=opts)
+
+    use_remote = os.getenv("USE_REMOTE_WEBDRIVER", "false").lower() == "true"
+    if use_remote:
+        remote_url = os.getenv("SELENIUM_REMOTE_URL", "http://selenium:4444")
+        return webdriver.Remote(command_executor=remote_url, options=opts)
+    else:
+        return webdriver.Chrome(options=opts)
 
 def _extract_title_safely(soup: BeautifulSoup) -> str:
     # 1) 메타 우선
@@ -127,7 +128,7 @@ def fetch_articles_http(urls: Iterable[str], ua_mode: str = "round_robin", delay
 
             # 요청 결과가 빈약하면(짧거나 paywall 등) 선택적으로 Selenium 폴백
             if enable_selenium_fallback and len(content) < min_len_for_ok and "finance.yahoo.com" in u:
-                driver = _build_headless_driver(user_agent=rotator.pick())
+                driver = _get_driver_for_fallback(user_agent=rotator.pick())
                 try:
                     driver.set_page_load_timeout(SELENIUM.get("page_load_timeout", 180))
                     driver.get(u)
