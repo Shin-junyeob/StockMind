@@ -1,4 +1,5 @@
 #!/bin/bash
 
-# python -m crawling.main
-python -m analysis.main
+python -m crawling.main_crawling
+python -m analysis.main_analysis
+
