@@ -9,7 +9,8 @@ from .io_utils import read_news_csv, output_path, write_results
 from .settings import OUTPUT_COLUMNS, DEDUP_SUBSET
 
 
-
+def _s(x):
+    return x.strip() if isinstance(x, str) else ""
 
 def process_one_day(ticker: str, date: str, input_csv_path: str) -> str:
     """
@@ -17,6 +18,11 @@ def process_one_day(ticker: str, date: str, input_csv_path: str) -> str:
     반환값: 저장된 결과 파일 경로
     """
     df = read_news_csv(input_csv_path)
+
+    if "content" not in df.columns:
+        df["content"] = ""
+    else:
+        df["content"] = df["content"].apply(_s)
 
 
     # 이미 존재하는 결과와 병합을 위해 기존 파일 로드
@@ -30,17 +36,18 @@ def process_one_day(ticker: str, date: str, input_csv_path: str) -> str:
 # 처리
     rows = []
     for _, row in df.iterrows():
-        content = (row.get("content") or "").strip()
+        content =  _s(row.get("content"))
         if not content:
             # 비어있으면 스킵(필요 시 summary="", sentiment="unknown" 등으로 기록 가능)
             continue
         summary = summarize_long(content)
-        senti = infer_sentiment(summary if summary else content)
-        kw = extract_keywords(summary if summary else content)
+        base = summary if summary else content
+        senti = infer_sentiment(base)
+        kw = extract_keywords(base)
         rows.append({
-            "summary": summary,
-            "sentiment": senti,
-            "keywords": kw,
+            "summary": _s(summary),
+            "sentiment": _s(senti),
+            "keywords": _s(kw),
         })
 
 
