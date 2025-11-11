@@ -1,0 +1,56 @@
+name: stockmind
+
+services:
+  # 1) 공통 베이스 이미지 빌드용
+  app-base:
+    build:
+      context: .
+      dockerfile: Dockerfile   # 루트의 Dockerfile 사용
+    image: stockmind/app:latest
+
+  # 2) Selenium - 원격 브라우저
+  selenium:
+    image: selenium/standalone-chromium:latest
+    container_name: stockmind-selenium
+    shm_size: 2gb
+    environment:
+      - TZ=Asia/Seoul
+    ports:
+      - "4444:4444"
+    profiles: ["selenium"]
+
+  # 3) Crawling 서비스
+  crawling:
+    image: stockmind/app:latest
+    container_name: stockmind-crawling
+
+    # selenium이 먼저 떠 있어야 하므로
+    depends_on:
+      selenium:
+        condition: service_started
+
+    environment:
+      RUN_ID: "local-dev"
+      TICKERS: "AAPL,GOOG,NVDA,TSLA,META,AMZN,NFLX,MSFT"
+      TZ: "Asia/Seoul"
+
+      STOCKMIND_BASE_DIR: "/app"
+      STOCKMIND_DATA_DIR: "/app/data"
+
+      USE_REMOTE_WEBDRIVER: "true"
+      SELENIUM_REMOTE_URL: "http://selenium:4444"
+
+      YF_MAX_SCROLL: "18"
+      YF_MAX_ARTICLES: "120"
+      YF_STOP_TOPN: "15"
+      YF_STOP_LOOKBACK_DAYS: "7"
+
+    volumes:
+      - ./code:/app/code
+      - ./data:/app/data
+      - ./results:/app/results
+
+    working_dir: /app/code
+    command: ["bash", "-lc", "python -m crawling.main_crawling"]
+    profiles: ["crawling"]
+
