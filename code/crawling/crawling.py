@@ -192,62 +192,26 @@ def _load_recent_urls_multi(out_dir: str, ticker: str, lookback_days: int, top_n
 # ───────────────────────────────────────────────────────────────────────────────
 # Selenium 드라이버(리소스 최소화 설정)
 # ───────────────────────────────────────────────────────────────────────────────
-def _make_driver(user_agent: str):
+def _make_driver(user_agent: str | None = None):
     opts = Options()
-
-    # Headless (new → 실패 시 legacy로 폴백)
-    if os.environ.get("YF_HEADLESS", "1") == "1":
-        opts.add_argument("--headless=new")
+    opts.add_argument("--headless=new")
     opts.add_argument("--no-sandbox")
     opts.add_argument("--disable-dev-shm-usage")
     opts.add_argument("--disable-gpu")
-    opts.add_argument("--window-size=1280,2000")
-    opts.add_argument("--disable-extensions")
-    opts.add_argument("--disable-popup-blocking")
-    # 네트워크/프록시 변인 최소화
-    opts.add_argument("--proxy-server=direct://")
-    opts.add_argument("--proxy-bypass-list=*")
-    # 자동화 탐지 완화
-    opts.add_argument("--disable-blink-features=AutomationControlled")
-    # DOM만 준비되면 진행
-    opts.page_load_strategy = "eager"
+    opts.add_argument("--window-size=1920,1080")
 
     if user_agent:
         opts.add_argument(f"--user-agent={user_agent}")
 
-    binary = os.environ.get("CHROME_BIN")
-    if binary:
-        opts.binary_location = binary
-    driver_path = os.environ.get("CHROMEDRIVER_PATH")
-    service = Service(executable_path=driver_path) if driver_path else Service()
+    use_remote = os.getenv("USE_REMOTE_WEBDRIVER", "false").lower() == "true"
 
-    try:
-        driver = webdriver.Chrome(service=service, options=opts)
-    except WebDriverException:
-        # legacy headless 재시도
-        opts = Options()
-        opts.add_argument("--headless")
-        opts.add_argument("--no-sandbox")
-        opts.add_argument("--disable-dev-shm-usage")
-        opts.add_argument("--disable-gpu")
-        opts.add_argument("--window-size=1280,2000")
-        opts.add_argument("--proxy-server=direct://")
-        opts.add_argument("--proxy-bypass-list=*")
-        opts.add_argument("--disable-blink-features=AutomationControlled")
-        if user_agent:
-            opts.add_argument(f"--user-agent={user_agent}")
-        if binary:
-            opts.binary_location = binary
-        driver = webdriver.Chrome(service=service, options=opts)
+    if use_remote:
+        remote_url = os.getenv("SELENIUM_REMOTE_URL", "http://selenium:4444")
+        return webdriver.Remote(command_executor=remote_url, options=opts)
 
-    # 타임아웃
-    try:
-        driver.set_page_load_timeout(int(os.environ.get("YF_PAGELOAD_TIMEOUT", "60")))
-        driver.set_script_timeout(int(os.environ.get("YF_SCRIPT_TIMEOUT", "60")))
-    except Exception:
-        pass
-
-    return driver
+    # 로컬 실행용 (컨테이너 안에 크롬 있을 때만)
+    service = Service()
+    return webdriver.Chrome(service=service, options=opts)
 
 
 def _driver_get_with_retry(driver, url: str, tries: int = 2, sleep_sec: float = 2.0):
