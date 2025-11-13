@@ -1,26 +1,51 @@
-# StockMind 공용 베이스 이미지
-FROM python:3.12-slim
+FROM apache/airflow:2.10.3-python3.11
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+USER root
 
-# 타임존 및 기본 패키지 설치
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    tzdata curl ca-certificates build-essential \
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    wget \
+    curl \
+    git \
+    vim \
+    default-libmysqlclient-dev \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-ENV TZ=Asia/Seoul
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential pkg-config libmariadb-dev && \
+    rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
+# Install Chrome and ChromeDriver for Selenium
+RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
+    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list \
+    && apt-get update \
+    && apt-get install -y google-chrome-stable \
+    && rm -rf /var/lib/apt/lists/*
 
-# 파이썬 의존성 설치
-COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+USER airflow
 
-# 코드/데이터는 docker-compose에서 마운트할 예정이라 COPY 생략
-# ENV 설정
-ENV STOCKMIND_BASE_DIR=/app \
-    STOCKMIND_DATA_DIR=/app/data
+# Copy requirements file
+COPY requirements.txt /tmp/requirements.txt
 
-CMD ["bash"]
+# Install Python dependencies
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r /tmp/requirements.txt
 
+# Copy project code
+COPY --chown=airflow:root ./code /opt/airflow/code
+
+# Set Python path to include code directory
+ENV PYTHONPATH="${PYTHONPATH}:/opt/airflow/code"
+
+# Create necessary directories
+RUN mkdir -p /opt/airflow/dags \
+    /opt/airflow/logs \
+    /opt/airflow/plugins \
+    /opt/airflow/data/raw \
+    /opt/airflow/results
+
+WORKDIR /opt/airflow

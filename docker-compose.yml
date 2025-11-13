@@ -1,56 +1,259 @@
 name: stockmind
 
 services:
-  # 1) 공통 베이스 이미지 빌드용
-  app-base:
-    build:
-      context: .
-      dockerfile: Dockerfile   # 루트의 Dockerfile 사용
-    image: stockmind/app:latest
-
-  # 2) Selenium - 원격 브라우저
-  selenium:
-    image: selenium/standalone-chromium:latest
-    container_name: stockmind-selenium
-    shm_size: 2gb
+  # PostgreSQL for Airflow metadata
+  postgres:
+    image: postgres:13
+    container_name: stockmind-postgres
     environment:
-      - TZ=Asia/Seoul
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    networks:
+      - stockmind-network
+
+  # MySQL for project metadata
+  mysql:
+    image: mysql:8.0
+    container_name: stockmind-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - stockmind-network
+
+  # Selenium Chrome for web scraping
+  selenium-chrome:
+    image: selenium/standalone-chrome:latest
+    container_name: stockmind-selenium
     ports:
       - "4444:4444"
-    profiles: ["selenium"]
-
-  # 3) Crawling 서비스
-  crawling:
-    image: stockmind/app:latest
-    container_name: stockmind-crawling
-
-    # selenium이 먼저 떠 있어야 하므로
-    depends_on:
-      selenium:
-        condition: service_started
-
+      - "7900:7900"  # VNC port for debugging
+    shm_size: 2gb
     environment:
-      RUN_ID: "local-dev"
-      TICKERS: "AAPL,GOOG,NVDA,TSLA,META,AMZN,NFLX,MSFT"
-      TZ: "Asia/Seoul"
+      - SE_NODE_MAX_SESSIONS=5
+      - SE_NODE_SESSION_TIMEOUT=300
+    networks:
+      - stockmind-network
 
-      STOCKMIND_BASE_DIR: "/app"
-      STOCKMIND_DATA_DIR: "/app/data"
+  # Redis for Celery (Airflow executor)
+  redis:
+    image: redis:7.2-alpine
+    container_name: stockmind-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 30s
+      retries: 50
+      start_period: 30s
+    networks:
+      - stockmind-network
 
-      USE_REMOTE_WEBDRIVER: "true"
-      SELENIUM_REMOTE_URL: "http://selenium:4444"
-
-      YF_MAX_SCROLL: "18"
-      YF_MAX_ARTICLES: "120"
-      YF_STOP_TOPN: "15"
-      YF_STOP_LOOKBACK_DAYS: "7"
-
+  # Airflow Webserver
+  airflow-webserver:
+    build: .
+    container_name: stockmind-airflow-webserver
+    command: webserver
+    ports:
+      - "8080:8080"
+    user: "${AIRFLOW_UID:-50000}:0"
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql://airflow:airflow@postgres/airflow
+      - AIRFLOW__CELERY__BROKER_URL=redis://redis:6379/0
+      - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW_FERNET_KEY}
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__WEBSERVER__SECRET_KEY=${AIRFLOW_SECRET_KEY}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - SELENIUM_HOST=selenium-chrome
+      - SELENIUM_PORT=4444
     volumes:
-      - ./code:/app/code
-      - ./data:/app/data
-      - ./results:/app/results
+      - ./dags:/opt/airflow/dags
+      - ./code:/opt/airflow/code
+      - ./data:/opt/airflow/data
+      - ./results:/opt/airflow/results
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - stockmind-network
 
-    working_dir: /app/code
-    command: ["bash", "-lc", "python -m crawling.main_crawling"]
-    profiles: ["crawling"]
+  # Airflow Scheduler
+  airflow-scheduler:
+    build: .
+    container_name: stockmind-airflow-scheduler
+    command: scheduler
+    user: "${AIRFLOW_UID:-50000}:0"
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql://airflow:airflow@postgres/airflow
+      - AIRFLOW__CELERY__BROKER_URL=redis://redis:6379/0
+      - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW_FERNET_KEY}
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - SELENIUM_HOST=selenium-chrome
+      - SELENIUM_PORT=4444
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./code:/opt/airflow/code
+      - ./data:/opt/airflow/data
+      - ./results:/opt/airflow/results
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "airflow", "jobs", "check", "--job-type", "SchedulerJob", "--hostname", "$${HOSTNAME}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - stockmind-network
 
+  # Airflow Worker
+  airflow-worker:
+    build: .
+    container_name: stockmind-airflow-worker
+    command: celery worker
+    user: "${AIRFLOW_UID:-50000}:0"
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql://airflow:airflow@postgres/airflow
+      - AIRFLOW__CELERY__BROKER_URL=redis://redis:6379/0
+      - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW_FERNET_KEY}
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - SELENIUM_HOST=selenium-chrome
+      - SELENIUM_PORT=4444
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./code:/opt/airflow/code
+      - ./data:/opt/airflow/data
+      - ./results:/opt/airflow/results
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "celery", "--app", "airflow.providers.celery.executors.celery_executor.app", "inspect", "ping", "-d", "celery@$${HOSTNAME}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - stockmind-network
+
+  # Airflow Init (run once to initialize database)
+  airflow-init:
+    build: .
+    container_name: stockmind-airflow-init
+    user: "${AIRFLOW_UID:-50000}:0"
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db migrate
+        airflow users create \
+          --username admin \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@stockmind.com \
+          --password admin
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=CeleryExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - AIRFLOW__CELERY__RESULT_BACKEND=db+postgresql://airflow:airflow@postgres/airflow
+      - AIRFLOW__CELERY__BROKER_URL=redis://redis:6379/0
+      - AIRFLOW__CORE__FERNET_KEY=${AIRFLOW_FERNET_KEY}
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - stockmind-network
+    restart: "no"
+
+volumes:
+  postgres_data:
+    driver: local
+  mysql_data:
+    driver: local
+
+networks:
+  stockmind-network:
+    driver: bridge
